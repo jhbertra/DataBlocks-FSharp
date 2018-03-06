@@ -8,4 +8,7 @@
     <Compile Include="Json.fs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="FsEssentials_jhbertra" Version="1.0.3" />
+  </ItemGroup>
 </Project>

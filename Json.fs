@@ -1,98 +1,149 @@
-namespace FsEncode
+namespace FsSerialize
 
-type JsProperty = JsProperty of name : string * value : Json
-and JsArray = JsArray of Json list
-and JsObject = JsObject of properties : JsProperty list
-and Json =
-    | JsObject of JsObject
-    | JsArray of JsArray
-    | JsNumber of float
+open FsEssentials
+open FsEssentials.Prelude
+
+type Json =
+    | JsObject of Map<string, Json>
+    | JsArray of Json list
+    | JsFloat of float
+    | JsInteger of int
     | JsBoolean of bool
     | JsString of string
+    | JsNull
 
 
 module Json =
 
-    let private flip f x y = f y x
+    let private spreadApply2 fab a b arg1 arg2 = fab (a arg1 arg2) (b arg1 arg2)
+
+    type DecodeError = 
+        | Single of id : string * error : string
+        | Aggregate of DecodeError list
 
 
-    type DecodeError = private DecodeError of id : string * error : string
+    type Decoder<'a> = private Decoder of id : string * decode : (Json -> string -> Result<'a, DecodeError>)
 
 
-    type Decoder<'a> = private Decoder of id : string * description : string * decode : (Json -> DecodeError list -> Result<'a, DecodeError list>)
-
-
-    let decode (Decoder (id , description , decode)) json = decode json []
+    let decode (Decoder (id , decode)) json = decode json id
 
 
     module Decoder =
 
-        let create id description decode =
-            Decoder
-                ( id
-                , description
-                , (fun json errors ->
-                    match decode json with
-                    | None -> DecodeError ( id , sprintf "Expected %s" description ) :: errors |> Error
-                    | Some result -> Ok result)
+        let create id decode = Decoder ( id , decode )
+
+        
+        let getId (Decoder ( id ,  _ )) = id
+
+
+        let getDecode (Decoder ( _ ,  decode )) = decode
+
+
+        let succeed a = create "root" (fun _ _ -> Ok a)
+
+
+        let (>>=) (Decoder ( id , decode )) f =
+            let (>>=) = Result.(>>=)
+            create id (fun json id -> decode json id >>= fun a -> (f a |> getDecode) json id)
+
+
+        let map f d = d >>= (f >> succeed)
+
+
+        let (<*>) (Decoder ( id, dfa )) (Decoder ( _ , da )) =
+            create id (spreadApply2 Result.(<*>) dfa da)
+
+
+        let (<^>) fa da = succeed fa <*> da
+
+
+        let (<|>) (Decoder ( id , da1 )) (Decoder ( _ , da2 )) =
+            create id (spreadApply2 Result.(<|>) da1 da2)
+
+
+        let (<?>) (Decoder (_ , decode)) newId = create newId decode
+
+
+        let string = 
+            create 
+                "root" 
+                (fun json id -> 
+                    match json with 
+                    | JsString s -> Ok s 
+                    | _ -> Single ( id , "Expected a string value" ) |> Error
+                )
+
+
+        let int = 
+            create 
+                "root" 
+                (fun json id -> 
+                    match json with 
+                    | JsInteger i -> Ok i
+                    | _ -> Single ( id , "Expected an integer value" ) |> Error
+                )
+
+
+        let float = 
+            create 
+                "root" 
+                (fun json id -> 
+                    match json with 
+                    | JsInteger i -> Ok (float i)
+                    | JsFloat f -> Ok f
+                    | _ -> Single ( id , "Expected a numeric value" ) |> Error
+                )
+
+
+        let bool =
+            create 
+                "root"
+                (fun json id ->
+                    match json with
+                    | JsBoolean b -> Ok b
+                    | _ -> Single ( id , "Expected a boolean value" ) |> Error
+                )
+
+
+        let nullable decoder =
+            create 
+                "root"
+                (fun json _ ->
+                    match json with
+                    | JsNull -> Ok None
+                    | _ -> decode decoder json |> Result.map Some
+                )
+
+
+        let array decoder =
+            create
+                "root"
+                (fun json id ->
+                    match json with
+                    | JsArray xs ->
+                        xs
+                        |> List.mapi (fun i x -> decode (decoder <?> (sprintf "%s[%d]" id i)) x)
+                        |> Result.sequence
+                    | _ -> Single ( id , "Expected an array" ) |> Error
                 )
 
         
-        let getId (Decoder (id , _,  _)) = id
-
-
-        let getDescription (Decoder (_ , description,  _)) = description
-
-
-        let constant a = Decoder ("root" , "" , (fun _ _ -> Ok a))
-
-
-        let (>>=) (Decoder (id , description , decode)) f =
-            Decoder 
-                ( id
-                , description
-                , fun json errors ->
-                    decode json errors
-                    |> Result.bind (fun a ->
-                        let (Decoder (_ , _ , decode)) = f a
-                        decode json errors
-                        )
+        let private property noneResult fieldName decoder =
+            create
+                "root"
+                (fun json id ->
+                    let fieldId = sprintf "%s.%s" id fieldName
+                    let decoder = decoder <?> fieldId
+                    match json with
+                    | JsObject properties -> 
+                        match Map.tryFind fieldName properties with
+                        | Some x -> decode decoder x
+                        | None -> noneResult fieldId
+                    | _ -> Single ( id , "Expected an object" ) |> Error
                 )
 
+        
+        let required fieldName = property (fun id -> Single ( id , "Value is required" ) |> Error) fieldName
 
-        let map f d = d >>= (f >> constant)
-
-
-        let (<*>) (Decoder (id1, description1, dfa)) (Decoder (_, description2, da)) = 
-            Decoder 
-                ( id1
-                , match description1 with
-                  | "" -> description2
-                  | x -> sprintf "%s and %s" x description2
-                , fun json errors ->
-                    match dfa json errors with
-                    | Error errors ->
-                        match da json errors with
-                        | Error errors -> Error errors
-                        | _ -> Error errors
-                    | Ok fa ->
-                        match da json errors with
-                        | Error errors -> Error errors
-                        | Ok a -> Ok (fa a)
-                )
-
-
-        let (<|>) (Decoder (id1, description1, da1)) (Decoder (id2, description2, da2)) =
-            Decoder
-                ( id1
-                , match description1 with
-                  | "" -> description2
-                  | x -> sprintf "%s or %s" x description2
-                , fun json errors ->
-                    match da1 json errors with
-                    | Error errors -> da2 json errors
-                    | Ok a -> Ok a
-                )
-
-
-        let (<?>) (Decoder (_ , description , decode)) newId = (Decoder (newId , description , decode))
+        
+        let optional fieldName = property (constant (Ok None)) fieldName
