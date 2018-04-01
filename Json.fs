@@ -51,6 +51,9 @@ module Json =
         let fail msg = create "{}" (fun _ id -> Error (error id msg))
 
 
+        let fromResult result = create "{}" (fun _ id -> Result.mapError (error id) result)
+
+
         let (>>=) d f =
             create
                 d.id
@@ -85,7 +88,13 @@ module Json =
 
 
         let (<|>) d1 d2 =
-            create d1.id (spreadApply2 Result.(<|>) d1.decode d2.decode)
+            create
+                d1.id
+                (fun json id ->
+                    match d1.decode json id with
+                    | Error _ -> d2.decode json id
+                    | x -> x
+                )
 
 
         let (<?>) decoder newId = create newId decoder.decode
@@ -156,7 +165,7 @@ module Json =
                 )
 
         
-        let private property noneResult decoder fieldName =
+        let private property noneResult fieldName decoder =
             create
                 "{}"
                 (fun json id ->
@@ -164,18 +173,12 @@ module Json =
                     | JsObject properties -> 
                         match Map.tryFind fieldName properties with
                         | Some x -> decode (decoder <?> fieldName) x
-                        | None -> noneResult id
+                        | None -> noneResult
                     | _ -> error id "Expected an object" |> Error
                 )
 
         
-        let required decoder fieldName =
-            property 
-                (fun id ->
-                    Error (parentError id "Unable to decode object" [error fieldName "Value is required"]) 
-                )
-                decoder
-                fieldName
+        let required fieldName = property (Error (error fieldName "Value is required")) fieldName
 
         
-        let optional decoder = property (constant (Ok None)) (nullable decoder)
+        let optional fieldName = nullable >> property (Ok None) fieldName

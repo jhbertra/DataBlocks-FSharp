@@ -25,8 +25,8 @@ module Json =
         | Ok a -> raise(new MatchException("Error", sprintf "%A" a, null))
         | Error x -> x
 
-        // string
 
+        // string
 
         [<Fact>]
         let ``string should decode a string`` () =
@@ -68,8 +68,8 @@ module Json =
             decode (Decoder.string <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
 
-        // bool
 
+        // bool
 
         [<Fact>]
         let ``bool should decode a boolean`` () =
@@ -111,8 +111,8 @@ module Json =
             decode (Decoder.bool <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected a boolean value")
 
-        // int
 
+        // int
 
         [<Fact>]
         let ``int should decode an integer`` () =
@@ -154,8 +154,8 @@ module Json =
             decode (Decoder.int <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected an integer value")
 
-        // float
 
+        // float
 
         [<Fact>]
         let ``float should decode a float`` () =
@@ -196,8 +196,8 @@ module Json =
             decode (Decoder.float <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected a numeric value")
 
-        // array
 
+        // array
 
         [<Fact>]
         let ``array should not decode an integer`` () =
@@ -256,8 +256,8 @@ module Json =
                     ]
                 )
 
-        // nullable
 
+        // nullable
 
         [<Fact>]
         let ``nullable should decode null`` () =
@@ -274,129 +274,123 @@ module Json =
             decode (Decoder.nullable Decoder.string <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
 
+
         // required
-        
 
         [<Fact>]
         let ``required should not decode an integer`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsInteger 1)
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``required should not decode a string`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsString "Foo")
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``required should not decode a boolean`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsBoolean false)
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``required should not decode an float`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsFloat 1.0)
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``required should not decode an array`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsArray [JsInteger 1; JsInteger 2])
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsArray [JsInteger 1; JsInteger 2])
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``required should not decode null`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") JsNull
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``required should fail when the field is missing`` () =
-            decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsObject (Map [("bar", JsString "bar")]))
+            decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsObject (Map [("bar", JsString "bar")]))
             |> isError 
-            |> should
-                equal
-                (Decoder.parentError
-                    "root"
-                    "Unable to decode object"
-                    [Decoder.error "foo" "Value is required"]
-                )
+            |> should equal (Decoder.error "foo" "Value is required")
 
 
         [<Fact>]
         let ``required should fail when its decoder fails`` () =
-            decode (Decoder.required (Decoder.fail "Boom") "foo" <?> "root") (JsObject (Map [("foo", JsString "bar")]))
+            decode (Decoder.required "foo" (Decoder.fail "Boom") <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isError 
             |> should equal (Decoder.error "foo" "Boom")
 
 
         [<Fact>]
         let ``required should succeed when its decoder succeeds`` () =
-            decode (Decoder.required Decoder.string "foo" <?> "root") (JsObject (Map [("foo", JsString "bar")]))
+            decode (Decoder.required "foo" Decoder.string <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isOk |> should equal "bar"
 
+
         // optional
-        
 
         [<Fact>]
         let ``optional should not decode an integer`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsInteger 1)
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``optional should not decode a string`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsString "Foo")
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``optional should not decode a boolean`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsBoolean false)
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``optional should not decode an float`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsFloat 1.0)
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``optional should not decode an array`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsArray [JsInteger 1; JsInteger 2])
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") (JsArray [JsInteger 1; JsInteger 2])
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``optional should not decode null`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") JsNull
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
 
         [<Fact>]
         let ``optional should fail when its decoder fails`` () =
-            decode (Decoder.optional (Decoder.fail "Boom") "foo" <?> "root") (JsObject (Map [("foo", JsString "bar")]))
+            decode (Decoder.optional "foo" (Decoder.fail "Boom") <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isError 
             |> should equal (Decoder.error "foo" "Boom")
 
 
         [<Fact>]
         let ``optional should succeed when its decoder succeeds`` () =
-            decode (Decoder.optional Decoder.string "foo" <?> "root") (JsObject (Map [("foo", JsString "bar")]))
+            decode (Decoder.optional "foo" Decoder.string <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isOk |> should equal (Some "bar")
 
 
         [<Fact>]
         let ``optional should decode None when the field is missing`` () =
-            decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsObject (Map [("bar", JsString "bar")]))
+            decode (Decoder.optional "foo" (Decoder.succeed ()) <?> "root") (JsObject (Map [("bar", JsString "bar")]))
             |> isOk |> should equal None
 
-        // Apply (<*>)
 
+        // Apply (<*>)
 
         [<Fact>]
         let ``(<*>) should fail on two failures`` () =
@@ -474,6 +468,7 @@ module Json =
             |> decode (makeTuple <^> (Decoder.int <?> "1") <*> (Decoder.int <?> "2") <?> "root")
             |> isOk |> should equal ( 0 , 0 )
 
+
         // Choose (<|>)
 
 
@@ -507,6 +502,124 @@ module Json =
                 <?> "root"
               )
               (JsInteger 0)
-            |> isError |> should equal (Decoder.error "2" "Expected a string value")
+            |> isError |> should equal (Decoder.error "root" "Expected a string value")
             
 
+        // Quasi-realistic scenario
+
+        type PositiveInteger =
+            PositiveInteger of int
+            with static member Create i =
+                    if i > 0 then
+                        Ok (PositiveInteger i)
+                    else
+                        Error "Value must be positive"
+
+
+        type ChildFieldType =
+            | Choice1 of int
+            | Choice2 of string        
+
+
+        type SuperAdvancedOptions = {
+            childField: ChildFieldType
+        }
+
+
+        let superAdvancedOptions childField = { childField = childField }
+
+
+        type AdvancedOptions = {
+            allowNonsecure : bool
+            superAdvaced : SuperAdvancedOptions
+        }
+
+
+        let advancedOptions allowNonsecure superAdvaced = {
+            allowNonsecure = allowNonsecure
+            superAdvaced = superAdvaced
+        }
+
+
+        type ImaginationConfig = {
+            url : string
+            connectionLimit : PositiveInteger
+            trustedUrls : string list
+            email : string option
+            advanced : AdvancedOptions
+        }
+
+
+        let imaginationConfig url connectionLimit trustedUrls email advanced = {
+            url = url
+            connectionLimit = connectionLimit
+            trustedUrls = trustedUrls
+            email = email
+            advanced = advanced
+        }
+
+        open Decoder
+
+
+        let superAdvancedOptionsDecoder =
+            superAdvancedOptions
+            <^> required "childField" ( (int |> map Choice1) <|> (string |> map Choice2) )
+
+
+        let advancedOptionsDecoder =
+            advancedOptions
+            <^> required "allowNonsecure" bool
+            <*> required "superAdvanced" superAdvancedOptionsDecoder
+
+
+        let imaginationConfigDecoder =
+            imaginationConfig
+            <^> required "url" string
+            <*> required "connectionLimit" (int >>= (PositiveInteger.Create >> fromResult))
+            <*> required "trustedUrls" (array string)
+            <*> optional "email" string
+            <*> required "advanced" advancedOptionsDecoder
+
+
+        [<Fact>]
+        let ``The API should suitably handle errors for more than trivial examples`` () =
+            decode
+                imaginationConfigDecoder
+                ( JsObject ( Map
+                    [
+                        ( "url" , JsInteger 1 )
+                        ( "connectionLimit" , JsInteger -1 )
+                        ( "email" , JsBoolean false )
+                        ( "advanced" , JsObject ( Map
+                            [ 
+                                ( "allowNonsecure" , JsBoolean false )
+                                ( "superAdvanced" , JsObject ( Map [ ( "childField" , JsBoolean true ) ] ) )
+                            ])
+                      )
+                    ])
+                )
+            |> isError
+            |> should
+                equal
+                ( parentError
+                    "{}"
+                    "Unable to decode children"
+                    [
+                        (Decoder.error "url" "Expected a string value")
+                        (Decoder.error "connectionLimit" "Value must be positive")
+                        (Decoder.error "trustedUrls" "Value is required")
+                        (Decoder.error "email" "Expected a string value")
+                        (Decoder.parentError
+                            "advanced"
+                            "Unable to decode children"
+                            [
+                                (Decoder.parentError
+                                    "superAdvanced"
+                                    "Unable to decode children"
+                                    [
+                                        (Decoder.error "childField" "Expected a string value")
+                                    ])
+                            ]
+                        )
+                    ]
+                )
