@@ -27,34 +27,41 @@ module Json =
 
         // string
 
+
         [<Fact>]
         let ``string should decode a string`` () =
             decode (Decoder.string <?> "root") (JsString "Foo") |> isOk |> should equal "Foo"
+
 
         [<Fact>]
         let ``string should not decode a boolean`` () =
             decode (Decoder.string <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
 
+
         [<Fact>]
         let ``string should not decode an integer`` () =
             decode (Decoder.string <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
+
 
         [<Fact>]
         let ``string should not decode an float`` () =
             decode (Decoder.string <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
 
+
         [<Fact>]
         let ``string should not decode an array`` () =
             decode (Decoder.string <?> "root") (JsArray [JsString "Foo"])
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
 
+
         [<Fact>]
         let ``string should not decode an object`` () =
             decode (Decoder.string <?> "root") (JsObject (Map [("Foo", JsString "Foo")]))
             |> isError |> should equal (Decoder.error "root" "Expected a string value")
+
 
         [<Fact>]
         let ``string should not decode null`` () =
@@ -63,34 +70,41 @@ module Json =
 
         // bool
 
+
         [<Fact>]
         let ``bool should decode a boolean`` () =
             decode (Decoder.bool <?> "root") (JsBoolean false) |> isOk |> should equal false
+
 
         [<Fact>]
         let ``bool should not decode a string`` () =
             decode (Decoder.bool <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected a boolean value")
 
+
         [<Fact>]
         let ``bool should not decode an integer`` () =
             decode (Decoder.bool <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected a boolean value")
+
 
         [<Fact>]
         let ``bool should not decode an float`` () =
             decode (Decoder.bool <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected a boolean value")
 
+
         [<Fact>]
         let ``bool should not decode an array`` () =
             decode (Decoder.bool <?> "root") (JsArray [JsString "Foo"])
             |> isError |> should equal (Decoder.error "root" "Expected a boolean value")
 
+
         [<Fact>]
         let ``bool should not decode an object`` () =
             decode (Decoder.bool <?> "root") (JsObject (Map [("Foo", JsString "Foo")]))
             |> isError |> should equal (Decoder.error "root" "Expected a boolean value")
+
 
         [<Fact>]
         let ``bool should not decode null`` () =
@@ -99,34 +113,41 @@ module Json =
 
         // int
 
+
         [<Fact>]
         let ``int should decode an integer`` () =
             decode (Decoder.int <?> "root") (JsInteger 1) |> isOk |> should equal 1
+
 
         [<Fact>]
         let ``int should not decode a string`` () =
             decode (Decoder.int <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected an integer value")
 
+
         [<Fact>]
         let ``int should not decode a boolean`` () =
             decode (Decoder.int <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected an integer value")
+
 
         [<Fact>]
         let ``int should not decode an float`` () =
             decode (Decoder.int <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected an integer value")
 
+
         [<Fact>]
         let ``int should not decode an array`` () =
             decode (Decoder.int <?> "root") (JsArray [JsString "Foo"])
             |> isError |> should equal (Decoder.error "root" "Expected an integer value")
 
+
         [<Fact>]
         let ``int should not decode an object`` () =
             decode (Decoder.int <?> "root") (JsObject (Map [("Foo", JsString "Foo")]))
             |> isError |> should equal (Decoder.error "root" "Expected an integer value")
+
 
         [<Fact>]
         let ``int should not decode null`` () =
@@ -135,33 +156,40 @@ module Json =
 
         // float
 
+
         [<Fact>]
         let ``float should decode a float`` () =
             decode (Decoder.float <?> "root") (JsFloat 1.0) |> isOk |> should equal 1.0
 
+
         [<Fact>]
         let ``float should decode an integer`` () =
             decode (Decoder.float <?> "root") (JsInteger 1) |> isOk |> should equal 1.0
+
 
         [<Fact>]
         let ``float should not decode a string`` () =
             decode (Decoder.float <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected a numeric value")
 
+
         [<Fact>]
         let ``float should not decode a boolean`` () =
             decode (Decoder.float <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected a numeric value")
+
 
         [<Fact>]
         let ``float should not decode an array`` () =
             decode (Decoder.float <?> "root") (JsArray [JsString "Foo"])
             |> isError |> should equal (Decoder.error "root" "Expected a numeric value")
 
+
         [<Fact>]
         let ``float should not decode an object`` () =
             decode (Decoder.float <?> "root") (JsObject (Map [("Foo", JsString "Foo")]))
             |> isError |> should equal (Decoder.error "root" "Expected a numeric value")
+
 
         [<Fact>]
         let ``float should not decode null`` () =
@@ -170,40 +198,48 @@ module Json =
 
         // array
 
+
         [<Fact>]
         let ``array should not decode an integer`` () =
             decode (Decoder.array (Decoder.succeed ()) <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected an array")
+
 
         [<Fact>]
         let ``array should not decode a string`` () =
             decode (Decoder.array (Decoder.succeed ()) <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected an array")
 
+
         [<Fact>]
         let ``array should not decode a boolean`` () =
             decode (Decoder.array (Decoder.succeed ()) <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected an array")
+
 
         [<Fact>]
         let ``array should not decode an float`` () =
             decode (Decoder.array (Decoder.succeed ()) <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected an array")
 
+
         [<Fact>]
         let ``array should not decode an object`` () =
             decode (Decoder.array (Decoder.succeed ()) <?> "root") (JsObject (Map [("Foo", JsString "Foo")]))
             |> isError |> should equal (Decoder.error "root" "Expected an array")
+
 
         [<Fact>]
         let ``array should not decode null`` () =
             decode (Decoder.array (Decoder.succeed ()) <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected an array")
 
+
         [<Fact>]
         let ``array should decode an array`` () =
             decode (Decoder.array Decoder.int <?> "root") (JsArray [JsInteger 1; JsInteger 2])
             |> isOk |> should equal [1; 2]
+
 
         [<Fact>]
         let ``array should aggregate failures`` () =
@@ -222,13 +258,16 @@ module Json =
 
         // nullable
 
+
         [<Fact>]
         let ``nullable should decode null`` () =
             decode (Decoder.nullable Decoder.string <?> "root") JsNull |> isOk |> should equal None
 
+
         [<Fact>]
         let ``nullable should decode its type`` () =
             decode (Decoder.nullable Decoder.string <?> "root") (JsString "Foo") |> isOk |> should equal (Some "Foo")
+
 
         [<Fact>]
         let ``nullable should fail when its decoder does`` () =
@@ -237,35 +276,42 @@ module Json =
 
         // required
         
+
         [<Fact>]
         let ``required should not decode an integer`` () =
             decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
+
 
         [<Fact>]
         let ``required should not decode a string`` () =
             decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
+
         [<Fact>]
         let ``required should not decode a boolean`` () =
             decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
+
 
         [<Fact>]
         let ``required should not decode an float`` () =
             decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
+
         [<Fact>]
         let ``required should not decode an array`` () =
             decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") (JsArray [JsInteger 1; JsInteger 2])
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
+
         [<Fact>]
         let ``required should not decode null`` () =
             decode (Decoder.required (Decoder.succeed ()) "foo" <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected an object")
+
 
         [<Fact>]
         let ``required should fail when the field is missing`` () =
@@ -279,11 +325,13 @@ module Json =
                     [Decoder.error "foo" "Value is required"]
                 )
 
+
         [<Fact>]
         let ``required should fail when its decoder fails`` () =
             decode (Decoder.required (Decoder.fail "Boom") "foo" <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isError 
             |> should equal (Decoder.error "foo" "Boom")
+
 
         [<Fact>]
         let ``required should succeed when its decoder succeeds`` () =
@@ -292,35 +340,42 @@ module Json =
 
         // optional
         
+
         [<Fact>]
         let ``optional should not decode an integer`` () =
             decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsInteger 1)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
+
 
         [<Fact>]
         let ``optional should not decode a string`` () =
             decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsString "Foo")
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
+
         [<Fact>]
         let ``optional should not decode a boolean`` () =
             decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsBoolean false)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
+
 
         [<Fact>]
         let ``optional should not decode an float`` () =
             decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsFloat 1.0)
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
+
         [<Fact>]
         let ``optional should not decode an array`` () =
             decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") (JsArray [JsInteger 1; JsInteger 2])
             |> isError |> should equal (Decoder.error "root" "Expected an object")
 
+
         [<Fact>]
         let ``optional should not decode null`` () =
             decode (Decoder.optional (Decoder.succeed ()) "foo" <?> "root") JsNull
             |> isError |> should equal (Decoder.error "root" "Expected an object")
+
 
         [<Fact>]
         let ``optional should fail when its decoder fails`` () =
@@ -328,10 +383,12 @@ module Json =
             |> isError 
             |> should equal (Decoder.error "foo" "Boom")
 
+
         [<Fact>]
         let ``optional should succeed when its decoder succeeds`` () =
             decode (Decoder.optional Decoder.string "foo" <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isOk |> should equal (Some "bar")
+
 
         [<Fact>]
         let ``optional should decode None when the field is missing`` () =
@@ -339,6 +396,7 @@ module Json =
             |> isOk |> should equal None
 
         // Apply (<*>)
+
 
         [<Fact>]
         let ``(<*>) should fail on two failures`` () =
@@ -357,6 +415,7 @@ module Json =
                     ]
                 )
 
+
         [<Fact>]
         let ``(<*>) should fail on first argument failure`` () =
             let makeTuple x y = ( x, y )
@@ -371,6 +430,7 @@ module Json =
                     [Decoder.error "1" "Expected a string value"]
                 )
 
+
         [<Fact>]
         let ``(<*>) should fail on second argument failure`` () =
             let makeTuple x y = ( x, y )
@@ -384,6 +444,7 @@ module Json =
                     "Unable to decode children"
                     [Decoder.error "2" "Expected a boolean value"]
                 )
+
 
         [<Fact>]
         let ``(<*>) should fail on third argument failure`` () =
@@ -405,6 +466,7 @@ module Json =
                     [Decoder.error "3" "Expected a boolean value"]
                 )
 
+
         [<Fact>]
         let ``(<*>) should apply the function to the successes`` () =
             let makeTuple x y = ( x, y )
@@ -414,6 +476,8 @@ module Json =
 
         // Choose (<|>)
 
+
+        [<Fact>]
         let ``(<|>) should choose the first success`` () =
             decode
               ( (Decoder.int |> Decoder.map (constant 1))
@@ -423,6 +487,8 @@ module Json =
               (JsInteger 0)
             |> isOk |> should equal 1
 
+
+        [<Fact>]
         let ``(<|>) should skip failures`` () =
             decode
               ( (Decoder.string |> Decoder.map (constant 1))
@@ -432,6 +498,8 @@ module Json =
               (JsInteger 0)
             |> isOk |> should equal 2
 
+
+        [<Fact>]
         let ``(<|>) should return the last failure`` () =
             decode
               ( (Decoder.bool |> Decoder.map (constant 1))
@@ -441,3 +509,4 @@ module Json =
               (JsInteger 0)
             |> isError |> should equal (Decoder.error "2" "Expected a string value")
             
+
