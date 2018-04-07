@@ -1,4 +1,4 @@
-namespace FsSerialize
+namespace DataBlocks
 
 open FSharpPlus
 
