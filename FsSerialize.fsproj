@@ -9,6 +9,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FsEssentials_jhbertra" Version="1.0.4" />
+    <PackageReference Include="FSharpPlus" Version="1.0.0-RC2" />
   </ItemGroup>
 </Project>

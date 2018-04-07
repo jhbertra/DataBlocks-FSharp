@@ -4,16 +4,15 @@ namespace FsSerialize.Test
 open Xunit
 open FsUnit.Xunit
 
-open FsEssentials.Prelude
+open FSharpPlus
+open FSharpPlus.Operators
+
 open FsSerialize
 open FsSerialize.Json
 
 module Json =
 
     let (<?>) = Decoder.(<?>)
-    let (<^>) = Decoder.(<^>)
-    let (<*>) = Decoder.(<*>)
-    let (<|>) = Decoder.(<|>)
 
     module Decoder =
 
@@ -247,13 +246,8 @@ module Json =
             |> isError 
             |> should
                 equal
-                (Decoder.parentError
-                    "root"
-                    "Unable to decode array"
-                    [
-                        Decoder.error "[0]" "Expected a string value"
-                        Decoder.error "[1]" "Expected a string value"
-                    ]
+                ( Decoder.error "root[0]" "Expected a string value"
+                  ++ Decoder.error "root[1]" "Expected a string value"
                 )
 
 
@@ -317,14 +311,14 @@ module Json =
         let ``required should fail when the field is missing`` () =
             decode (Decoder.required "foo" (Decoder.succeed ()) <?> "root") (JsObject (Map [("bar", JsString "bar")]))
             |> isError 
-            |> should equal (Decoder.error "foo" "Value is required")
+            |> should equal (Decoder.error "root.foo" "Value is required")
 
 
         [<Fact>]
         let ``required should fail when its decoder fails`` () =
             decode (Decoder.required "foo" (Decoder.fail "Boom") <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isError 
-            |> should equal (Decoder.error "foo" "Boom")
+            |> should equal (Decoder.error "root.foo" "Boom")
 
 
         [<Fact>]
@@ -375,7 +369,7 @@ module Json =
         let ``optional should fail when its decoder fails`` () =
             decode (Decoder.optional "foo" (Decoder.fail "Boom") <?> "root") (JsObject (Map [("foo", JsString "bar")]))
             |> isError 
-            |> should equal (Decoder.error "foo" "Boom")
+            |> should equal (Decoder.error "root.foo" "Boom")
 
 
         [<Fact>]
@@ -394,78 +388,50 @@ module Json =
 
         [<Fact>]
         let ``(<*>) should fail on two failures`` () =
-            let makeTuple x y = ( x, y )
             JsInteger 0
-            |> decode (makeTuple <^> (Decoder.string <?> "1") <*> (Decoder.bool <?> "2") <?> "root")
+            |> decode (tuple2 <!> Decoder.string <*> Decoder.bool <?> "root")
             |> isError
             |> should
                 equal
-                (Decoder.parentError
-                    "root"
-                    "Unable to decode children"
-                    [
-                        Decoder.error "1" "Expected a string value"
-                        Decoder.error "2" "Expected a boolean value"
-                    ]
+                ( Decoder.error "root" "Expected a string value"
+                  ++ Decoder.error "root" "Expected a boolean value"
                 )
 
 
         [<Fact>]
         let ``(<*>) should fail on first argument failure`` () =
-            let makeTuple x y = ( x, y )
             JsInteger 0
-            |> decode (makeTuple <^> (Decoder.string <?> "1") <*> (Decoder.int <?> "2") <?> "root")
+            |> decode (tuple2 <!> Decoder.string <*> Decoder.int <?> "root")
             |> isError
-            |> should
-                equal
-                (Decoder.parentError
-                    "root"
-                    "Unable to decode children"
-                    [Decoder.error "1" "Expected a string value"]
-                )
+            |> should equal (Decoder.error "root" "Expected a string value")
 
 
         [<Fact>]
         let ``(<*>) should fail on second argument failure`` () =
-            let makeTuple x y = ( x, y )
             JsInteger 0
-            |> decode (makeTuple <^> (Decoder.int <?> "1") <*> (Decoder.bool <?> "2") <?> "root")
+            |> decode (tuple2 <!> Decoder.int <*> Decoder.bool <?> "root")
             |> isError
-            |> should
-                equal
-                (Decoder.parentError
-                    "root"
-                    "Unable to decode children"
-                    [Decoder.error "2" "Expected a boolean value"]
-                )
+            |> should equal (Decoder.error "root" "Expected a boolean value")
 
 
         [<Fact>]
         let ``(<*>) should fail on third argument failure`` () =
-            let makeTuple x y z = ( x , y , z )
             JsInteger 0
             |> decode 
-              ( makeTuple
-                <^> (Decoder.int <?> "1")
-                <*> (Decoder.int <?> "2")
-                <*> (Decoder.bool <?> "3")
+              ( tuple3
+                <!> Decoder.int
+                <*> Decoder.int
+                <*> Decoder.bool
                 <?> "root"
               )
             |> isError
-            |> should
-                equal
-                (Decoder.parentError
-                    "root"
-                    "Unable to decode children"
-                    [Decoder.error "3" "Expected a boolean value"]
-                )
+            |> should equal (Decoder.error "root" "Expected a boolean value")
 
 
         [<Fact>]
         let ``(<*>) should apply the function to the successes`` () =
-            let makeTuple x y = ( x, y )
             JsInteger 0
-            |> decode (makeTuple <^> (Decoder.int <?> "1") <*> (Decoder.int <?> "2") <?> "root")
+            |> decode (tuple2 <!> Decoder.int <*> Decoder.int <?> "root")
             |> isOk |> should equal ( 0 , 0 )
 
 
@@ -475,9 +441,8 @@ module Json =
         [<Fact>]
         let ``(<|>) should choose the first success`` () =
             decode
-              ( (Decoder.int |> Decoder.map (constant 1))
-                <|> (Decoder.int |> Decoder.map (constant 2))
-                <?> "root"
+              ( ((konst 1) <!> Decoder.int)
+                <|> ((konst 2) <!> Decoder.int)
               )
               (JsInteger 0)
             |> isOk |> should equal 1
@@ -486,9 +451,8 @@ module Json =
         [<Fact>]
         let ``(<|>) should skip failures`` () =
             decode
-              ( (Decoder.string |> Decoder.map (constant 1))
-                <|> (Decoder.int |> Decoder.map (constant 2))
-                <?> "root"
+              ( ((konst 1) <!> Decoder.string)
+                <|> ((konst 2) <!> Decoder.int)
               )
               (JsInteger 0)
             |> isOk |> should equal 2
@@ -497,12 +461,11 @@ module Json =
         [<Fact>]
         let ``(<|>) should return the last failure`` () =
             decode
-              ( (Decoder.bool |> Decoder.map (constant 1))
-                <|> (Decoder.string |> Decoder.map (constant 2))
-                <?> "root"
+              ( ((konst 1) <!> Decoder.bool)
+                <|> ((konst 2) <!> Decoder.string)
               )
               (JsInteger 0)
-            |> isError |> should equal (Decoder.error "root" "Expected a string value")
+            |> isError |> should equal (Decoder.error "" "Expected a string value")
             
 
         // Quasi-realistic scenario
@@ -563,18 +526,18 @@ module Json =
 
         let superAdvancedOptionsDecoder =
             superAdvancedOptions
-            <^> required "childField" ( (int |> map Choice1) <|> (string |> map Choice2) )
+            <!> required "childField" ( (int |> map Choice1) <|> (string |> map Choice2) )
 
 
         let advancedOptionsDecoder =
             advancedOptions
-            <^> required "allowNonsecure" bool
+            <!> required "allowNonsecure" bool
             <*> required "superAdvanced" superAdvancedOptionsDecoder
 
 
         let imaginationConfigDecoder =
             imaginationConfig
-            <^> required "url" string
+            <!> required "url" string
             <*> required "connectionLimit" (int >>= (PositiveInteger.Create >> fromResult))
             <*> required "trustedUrls" (array string)
             <*> optional "email" string
@@ -601,25 +564,9 @@ module Json =
             |> isError
             |> should
                 equal
-                ( parentError
-                    "{}"
-                    "Unable to decode children"
-                    [
-                        (Decoder.error "url" "Expected a string value")
-                        (Decoder.error "connectionLimit" "Value must be positive")
-                        (Decoder.error "trustedUrls" "Value is required")
-                        (Decoder.error "email" "Expected a string value")
-                        (Decoder.parentError
-                            "advanced"
-                            "Unable to decode children"
-                            [
-                                (Decoder.parentError
-                                    "superAdvanced"
-                                    "Unable to decode children"
-                                    [
-                                        (Decoder.error "childField" "Expected a string value")
-                                    ])
-                            ]
-                        )
-                    ]
+                ( (Decoder.error "url" "Expected a string value")
+                  ++ (Decoder.error "connectionLimit" "Value must be positive")
+                  ++ (Decoder.error "trustedUrls" "Value is required")
+                  ++ (Decoder.error "email" "Expected a string value")
+                  ++ (Decoder.error "advanced.superAdvanced.childField" "Expected a string value")
                 )
