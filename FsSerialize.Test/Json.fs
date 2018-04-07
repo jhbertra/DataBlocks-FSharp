@@ -494,13 +494,13 @@ module Json =
 
         type AdvancedOptions = {
             allowNonsecure : bool
-            superAdvaced : SuperAdvancedOptions
+            superAdvanced : SuperAdvancedOptions
         }
 
 
-        let advancedOptions allowNonsecure superAdvaced = {
+        let advancedOptions allowNonsecure superAdvanced = {
             allowNonsecure = allowNonsecure
-            superAdvaced = superAdvaced
+            superAdvanced = superAdvanced
         }
 
 
@@ -570,3 +570,35 @@ module Json =
                   ++ (Decoder.error "email" "Expected a string value")
                   ++ (Decoder.error "advanced.superAdvanced.childField" "Expected a string value")
                 )
+
+
+        [<Fact>]
+        let ``The API should suitably handle successes for more than trivial examples`` () =
+            decode
+                imaginationConfigDecoder
+                ( JsObject ( Map
+                    [
+                        ( "url" , JsString "http://www.google.com" )
+                        ( "connectionLimit" , JsInteger 1 )
+                        ( "trustedUrls" , JsArray [JsString "url1"] )
+                        ( "email" , JsString "asdf@test.com" )
+                        ( "advanced" , JsObject ( Map
+                            [ 
+                                ( "allowNonsecure" , JsBoolean false )
+                                ( "superAdvanced" , JsObject ( Map [ ( "childField" , JsInteger 1 ) ] ) )
+                            ])
+                      )
+                    ])
+                )
+            |> isOk
+            |> should
+                equal
+                { url = "http://www.google.com"
+                  connectionLimit = PositiveInteger 1
+                  trustedUrls = ["url1"]
+                  email = Some "asdf@test.com"
+                  advanced =
+                    { allowNonsecure = false
+                      superAdvanced = { childField = Choice1 1 }
+                    }
+                }
