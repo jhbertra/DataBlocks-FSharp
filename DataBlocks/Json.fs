@@ -29,10 +29,13 @@ type JsonDecoder<'a> = {
 type JsonEncoder<'a> = JsonEncoder of ('a -> Json)
 
 
-type Json<'a> = {
+type JsonBlock<'a, 'b> = private {
     decoder : JsonDecoder<'a>
-    encoder : JsonEncoder<'a>
+    encoder : JsonEncoder<'b>
     }
+
+
+type JsonBlock<'a> = Fixed of JsonBlock<'a, 'a>
 
 
 type DecodeError with
@@ -54,6 +57,12 @@ module Json =
 
 
     let runEncoder (JsonEncoder encoder) data = encoder data
+
+
+    let decode (Fixed jsonBlock) = runDecoder jsonBlock.decoder
+
+
+    let encode (Fixed jsonBlock) = runEncoder jsonBlock.encoder
 
 
     module Decoder =
@@ -165,6 +174,42 @@ module Json =
         let optional fieldName = nullable >> property (konst (Ok None)) fieldName
 
 
+        let apply dfa da = 
+            create
+                dfa.id
+                (fun json id ->
+                    let result1 = dfa.decode json id
+                    let result2 = da.decode json id
+                    match ( result1 , result2 ) with
+                    | ( Error e1 , Error e2 ) -> Error (e1 ++ e2)
+                    | ( _ , Error e2 ) -> Error e2
+                    | ( Error e1 , _ ) -> Error e1
+                    | ( Ok fa, Ok a ) -> Ok (fa a)
+                )
+
+
+        let bind f d =
+            create
+                d.id
+                (fun json id ->
+                    monad {
+                        let! a = d.decode json id
+                        let next = f a
+                        return! next.decode json id
+                    }
+                )
+
+
+        let alternate d1 d2 =
+            create
+                d1.id
+                (fun json id ->
+                    match d1.decode json id with
+                    | Error _ -> d2.decode json id
+                    | x -> x
+                )
+
+
     module Encoder =
 
         let string = JsonEncoder JsString
@@ -191,6 +236,25 @@ module Json =
             JsonEncoder (fun x -> List.map encoder x |> JsArray)
 
 
+        let choose splitA (JsonEncoder encoderB) (JsonEncoder encoderC) =
+            JsonEncoder
+                (fun a ->
+                    match splitA a with
+                    | Choice1Of2 b -> encoderB b
+                    | Choice2Of2 c -> encoderC c
+                )                
+
+
+        let switch<'a> : JsonEncoder<'a> = JsonEncoder (konst (JsObject Map.empty))
+
+
+        let choice getter encoder chainEncoder =
+            choose
+                (fun a ->  getter a |> Option.map Choice2Of2 |> Option.defaultValue (Choice1Of2 a))
+                chainEncoder
+                encoder
+
+
         let divide splitA (JsonEncoder encoderB) (JsonEncoder encoderC) =
             JsonEncoder
               (fun a ->
@@ -208,15 +272,6 @@ module Json =
               )
 
 
-        let choose splitA (JsonEncoder encoderB) (JsonEncoder encoderC) =
-            JsonEncoder
-                (fun a ->
-                    match splitA a with
-                    | Choice1Of2 b -> encoderB b
-                    | Choice2Of2 c -> encoderC c
-                )          
-
-
         let object<'a> : JsonEncoder<'a> = JsonEncoder (konst (JsObject Map.empty))
 
 
@@ -224,60 +279,86 @@ module Json =
             divide
                 (fun a -> ( a , getter a ))
                 chainEncoder
-                (JsonEncoder (encoder >> (flip (Map.add fieldName)) Map.empty >> JsObject))            
+                (JsonEncoder (encoder >> (flip (Map.add fieldName)) Map.empty >> JsObject))
 
 
-        let switch<'a> : JsonEncoder<'a> = JsonEncoder (konst (JsObject Map.empty))
+        let contramap f (JsonEncoder e) = contramap f e |> JsonEncoder            
 
 
-        let choice getter encoder chainEncoder =
-            choose
-                (fun a ->  getter a |> Option.map Choice2Of2 |> Option.defaultValue (Choice1Of2 a))
-                chainEncoder
-                encoder
+    let create decoder encoder = Fixed {
+        decoder = decoder
+        encoder = encoder
+    }
 
+
+    let (<?>) (Fixed jsonBlock) newId = Fixed { jsonBlock with decoder = { jsonBlock.decoder with id = newId } }
+
+
+    let string = create Decoder.string Encoder.string
+
+
+    let int = create Decoder.int Encoder.int
+
+
+    let float =  create Decoder.float Encoder.float
+
+
+    let bool = create Decoder.bool Encoder.bool
+
+
+    let nullable json = create (Decoder.nullable json.decoder) (Encoder.nullable json.encoder)
+
+
+    let array json = create (Decoder.array json.decoder) (Encoder.array json.encoder)
+
+
+    let switch<'a> : JsonBlock<'a, 'a> = { decoder = Decoder.fail "No choices in switch"; encoder = Encoder.switch }
+
+
+    let choice getter jsonBlock (Fixed chainBlock) =
+        { decoder = Decoder.alternate jsonBlock.decoder chainBlock.decoder
+          encoder = Encoder.choice getter jsonBlock.encoder chainBlock.encoder
+        } |> Fixed
+
+
+    let object f = { decoder = Decoder.succeed f; encoder = Encoder.object }
+
+    
+    let required fieldName (getter : 'c -> 'a) (Fixed json) (chainJson : JsonBlock<('a -> 'b), 'c>) : JsonBlock<'b, 'c> =
+        { decoder = Decoder.apply chainJson.decoder (Decoder.required fieldName json.decoder)
+          encoder = Encoder.property fieldName getter json.encoder chainJson.encoder
+        }
+
+    
+    let optional fieldName (getter : 'c -> 'a option) (Fixed json) (chainJson : JsonBlock<('a option -> 'b), 'c>) : JsonBlock<'b, 'c> =
+        { decoder = Decoder.apply chainJson.decoder (Decoder.optional fieldName json.decoder)
+          encoder = Encoder.property fieldName getter (Encoder.nullable json.encoder) chainJson.encoder
+        }
+
+
+    let endObject = Fixed
+
+
+    let invmap f g (Fixed json) = Fixed {
+        decoder = Decoder.bind (f >> Decoder.succeed) json.decoder
+        encoder = Encoder.contramap g json.encoder
+    } 
 
 
 type JsonDecoder<'a> with
 
-    static member Return (x : 'a) = Json.Decoder.create "" (fun _ _ -> Ok x)
+    static member Return (x : 'a) = Json.Decoder.succeed x
 
-    static member (<*>) ( dfa , da ) : JsonDecoder<'b> =
-        Json.Decoder.create
-            dfa.id
-            (fun json id ->
-                let result1 = dfa.decode json id
-                let result2 = da.decode json id
-                match ( result1 , result2 ) with
-                | ( Error e1 , Error e2 ) -> Error (e1 ++ e2)
-                | ( _ , Error e2 ) -> Error e2
-                | ( Error e1 , _ ) -> Error e1
-                | ( Ok fa, Ok a ) -> Ok (fa a)
-            )
+    static member (<*>) ( dfa , da ) : JsonDecoder<'b> = Json.Decoder.apply dfa da
 
     static member (>>=) ( d : JsonDecoder<'a> , f : 'a -> JsonDecoder<'b> ) : JsonDecoder<'b> =
-        Json.Decoder.create
-            d.id
-            (fun json id ->
-                monad {
-                    let! a = d.decode json id
-                    let next = f a
-                    return! next.decode json id
-                }
-            )
-
+        Json.Decoder.bind f d
 
     static member (<|>) ( d1 , d2 ) =
-        Json.Decoder.create
-            d1.id
-            (fun json id ->
-                match d1.decode json id with
-                | Error _ -> d2.decode json id
-                | x -> x
-            )        
+        Json.Decoder.alternate d1 d2
 
 
 type JsonEncoder<'a> with
 
-    static member Contramap (JsonEncoder f : JsonEncoder<'a>, fba : 'b -> 'a) : JsonEncoder<'b> =
-        contramap fba f |> JsonEncoder
+    static member Contramap (e : JsonEncoder<'a>, f : 'b -> 'a) : JsonEncoder<'b> =
+        Json.Encoder.contramap f e
