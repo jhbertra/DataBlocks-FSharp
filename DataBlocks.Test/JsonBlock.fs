@@ -8,7 +8,6 @@ open FSharpPlus.Operators
 
 open DataBlocks
 open DataBlocks.Json
-open System.Collections.Generic
 
 module JsonBlockTests =
 
@@ -27,8 +26,13 @@ module JsonBlockTests =
 
 
     [<Fact>]
-    let ``string should decode a string`` () =
+    let ``string should decode a JsString`` () =
         decode string (JsString "Foo") |> isOk |> should equal "Foo"
+
+
+    [<Fact>]
+    let ``decodeString should decode a raw string`` () =
+        decodeString string "\"Foo\"" |> isOk |> should equal "Foo"
         
 
     [<Fact>]
@@ -37,8 +41,13 @@ module JsonBlockTests =
 
 
     [<Fact>]
-    let ``int should decode an integer`` () =
+    let ``int should decode a JsInteger`` () =
         decode int (JsInteger 1) |> isOk |> should equal 1   
+
+
+    [<Fact>]
+    let ``decodeString should decode a raw int`` () =
+        decodeString int "1" |> isOk |> should equal 1   
         
 
     [<Fact>]
@@ -47,8 +56,13 @@ module JsonBlockTests =
 
 
     [<Fact>]
-    let ``bool should decode a bool`` () =
+    let ``bool should decode a JsBool`` () =
         decode bool (JsBoolean true) |> isOk |> should equal true
+
+
+    [<Fact>]
+    let ``decodeString should decode a raw bool`` () =
+        decodeString bool "true" |> isOk |> should equal true
         
 
     [<Fact>]
@@ -57,8 +71,13 @@ module JsonBlockTests =
 
 
     [<Fact>]
-    let ``float should decode a float`` () =
+    let ``float should decode a JsFloat`` () =
         decode float (JsFloat 2.5) |> isOk |> should equal 2.5
+
+
+    [<Fact>]
+    let ``decodeString should decode a raw float`` () =
+        decodeString float "2.5" |> isOk |> should equal 2.5
         
 
     [<Fact>]
@@ -89,8 +108,12 @@ module JsonBlockTests =
         
 
     [<Fact>]
-    let ``array should decode an array`` () =
-        decode (array int) (JsArray [JsInteger 0; JsInteger 1; JsInteger 2])
+    let ``array should decode a JsArray`` () =
+        decode (array int) (JsArray [JsInteger 0; JsInteger 1; JsInteger 2]) 
+
+    [<Fact>]
+    let ``decodeString should decode a raw array`` () =
+        decodeString (array int) "[0, 1, 2]"
         |> isOk
         |> should equal [0; 1; 2]
         
@@ -128,6 +151,27 @@ module JsonBlockTests =
                 ]
             )
         |> decode
+          ( tuple3
+            |> ``{``
+            |> required "foo" item1 int
+            |> optional "bar" item2 bool
+            |> required "qux" item3 string
+            |> ``}``
+          )
+        |> isOk
+        |> should equal (1, Some true, "test")
+
+
+    [<Fact>]
+    let ``decodeString should decode a raw object`` () =
+        """
+        {
+            "foo": 1,
+            "bar": true,
+            "qux": "test"
+        }
+        """        
+        |> decodeString
           ( tuple3
             |> ``{``
             |> required "foo" item1 int
@@ -177,7 +221,7 @@ module JsonBlockTests =
 
 
     [<Fact>]
-    let ``The API should suitably encode a more than trivial examples`` () =
+    let ``The API should suitably encode a more than trivial example`` () =
         encode
             imaginationConfigBlock
             { url = "http://www.google.com"
@@ -208,7 +252,7 @@ module JsonBlockTests =
 
 
     [<Fact>]
-    let ``The API should suitably decode a more than trivial examples`` () =
+    let ``The API should suitably decode a more than trivial example`` () =
         decode
             imaginationConfigBlock
             ( JsObject ( Map
@@ -225,6 +269,36 @@ module JsonBlockTests =
                   )
                 ])
             )
+        |> isOk
+        |> should
+            equal
+            { url = "http://www.google.com"
+              connectionLimit = PositiveInteger 1
+              trustedUrls = ["url1"]
+              email = Some "asdf@test.com"
+              advanced =
+                { allowNonsecure = false
+                  superAdvanced = { childField = Choice1 1 }
+                }
+            }
+
+
+    [<Fact>]
+    let ``decodeString should suitably decode a more than trivial example`` () =
+        decodeString
+            imaginationConfigBlock
+            """
+            {
+                "url": "http://www.google.com",
+                "connectionLimit": 1,
+                "trustedUrls": ["url1"],
+                "email": "asdf@test.com",
+                "advanced": {
+                    "allowNonsecure": false,
+                    "superAdvanced": { "childField": 1 }
+                }
+            }
+            """
         |> isOk
         |> should
             equal

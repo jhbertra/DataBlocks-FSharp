@@ -4,7 +4,6 @@ open Xunit
 open FsUnit.Xunit
 
 open FSharpPlus
-open FSharpPlus.Operators
 
 open DataBlocks
 open DataBlocks.Json

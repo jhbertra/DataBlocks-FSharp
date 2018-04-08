@@ -1,6 +1,8 @@
 namespace DataBlocks
 
 open FSharpPlus
+open FSharpPlus.Control
+open FSharpPlus
 
 type Json =
     | JsObject of Map<string, Json>
@@ -50,9 +52,6 @@ type DecodeError with
 
 module Json =
 
-    let private spreadApply2 fab a b arg1 arg2 = fab (a arg1 arg2) (b arg1 arg2)
-
-
     let runDecoder decoder json = decoder.decode json decoder.id
 
 
@@ -63,6 +62,86 @@ module Json =
 
 
     let encode (Fixed jsonBlock) = runEncoder jsonBlock.encoder
+
+
+    module Parser =
+
+        open FParsec
+
+        let jnull<'a> : Parser<Json, 'a> = stringReturn "null" JsNull
+
+        let jtrue<'a> : Parser<Json, 'a> = stringReturn "true" (JsBoolean true)
+
+        let jfalse<'a> : Parser<Json, 'a> = stringReturn "false" (JsBoolean false)
+
+        let jnumber<'a> : Parser<Json, 'a> = 
+            pfloat 
+            |>> (fun n ->
+                    if n % 1.0 = 0.0 then
+                        JsInteger (int n)
+                    else
+                        JsFloat n
+                )
+
+        let stringLiteral<'a> : Parser<string, 'a> =
+            let escape =  anyOf "\"\\/bfnrt"
+                          |>> function
+                              | 'b' -> "\b"
+                              | 'f' -> "\u000C"
+                              | 'n' -> "\n"
+                              | 'r' -> "\r"
+                              | 't' -> "\t"
+                              | c   -> string c
+
+            let unicodeEscape =
+                /// converts a hex char ([0-9a-fA-F]) to its integer number (0-15)
+                let hex2int c = (int c &&& 15) + (int c >>> 6)*9
+
+                pstring "u" >>. pipe4 hex hex hex hex (fun h3 h2 h1 h0 ->
+                    (hex2int h3)*4096 + (hex2int h2)*256 + (hex2int h1)*16 + hex2int h0
+                    |> char |> string
+                )
+
+            let escapedCharSnippet = pstring "\\" >>. (escape <|> unicodeEscape)
+            let normalCharSnippet  = manySatisfy (fun c -> c <> '"' && c <> '\\')
+
+            between (pstring "\"") (pstring "\"")
+                    (stringsSepBy normalCharSnippet escapedCharSnippet)
+
+        let jstring<'a> : Parser<Json, 'a> = stringLiteral |>> JsString            
+
+        let jvalue, jvalueRef = createParserForwardedToRef<Json, unit>()
+
+        let listBetweenStrings sOpen sClose pElement f =
+            between (pstring sOpen) (pstring sClose)
+                    (spaces >>. sepBy (pElement .>> spaces) (pstring "," >>. spaces) |>> f)
+
+        let jlist = listBetweenStrings "[" "]" jvalue JsArray
+
+        let keyValue = stringLiteral .>>. (spaces >>. pstring ":" >>. spaces >>. jvalue)   
+
+        let jobject = listBetweenStrings "{" "}" keyValue (Map.ofList >> JsObject)
+
+        do jvalueRef := choice
+            [ jobject
+              jlist
+              jstring
+              jnumber
+              jtrue
+              jfalse
+              jnull
+            ]
+        
+        let json = spaces >>. jvalue .>> spaces .>> eof
+
+        
+        let parse text =
+            match run json text with
+            | Success ( result , _ , _ ) -> Result.Ok result
+            | Failure ( msg , _ , _ ) -> Result.Error (Single (SingleError ( "" , msg )))
+
+
+    let decodeString jsonBlock = Parser.parse >=> decode jsonBlock
 
 
     module Decoder =
