@@ -10,7 +10,6 @@ type Json =
     | JsBoolean of bool
     | JsString of string
     | JsNull
-    | JsVoid // though not part of the grammar, this is needed to act as a value which is discarded
 
 
 type SingleError = SingleError of id : string * error : string
@@ -51,7 +50,10 @@ module Json =
     let private spreadApply2 fab a b arg1 arg2 = fab (a arg1 arg2) (b arg1 arg2)
 
 
-    let decode decoder json = decoder.decode json decoder.id
+    let runDecoder decoder json = decoder.decode json decoder.id
+
+
+    let runEncoder (JsonEncoder encoder) data = encoder data
 
 
     module Decoder =
@@ -121,7 +123,7 @@ module Json =
                 (fun json id ->
                     match json with
                     | JsNull -> Ok None
-                    | _ -> decode (decoder <?> id) json |> Result.map Some
+                    | _ -> runDecoder (decoder <?> id) json |> Result.map Some
                 )
 
 
@@ -131,7 +133,7 @@ module Json =
                 (fun json id ->
                     match json with
                     | JsArray xs ->
-                        let results = xs |> List.mapi (fun i x -> decode (decoder <?> (sprintf "%s[%d]" id i)) x)
+                        let results = xs |> List.mapi (fun i x -> runDecoder (decoder <?> (sprintf "%s[%d]" id i)) x)
                         let errors = List.collect (function Error e -> [e] | _ -> []) results
                         if not (List.isEmpty errors) then
                             sum errors |> Error
@@ -151,7 +153,7 @@ module Json =
                     match json with
                     | JsObject properties -> 
                         match Map.tryFind fieldName properties with
-                        | Some x -> decode (decoder <?> fieldId) x
+                        | Some x -> runDecoder (decoder <?> fieldId) x
                         | None -> noneResult fieldId
                     | _ -> error id "Expected an object" |> Error
                 )
@@ -206,7 +208,7 @@ module Json =
               )
 
 
-        let object<'a> : JsonEncoder<'a> = JsonEncoder (konst JsVoid)
+        let object<'a> : JsonEncoder<'a> = JsonEncoder (konst (JsObject Map.empty))
 
 
         let property fieldName getter (JsonEncoder encoder) chainEncoder =

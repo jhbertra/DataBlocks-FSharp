@@ -8,7 +8,9 @@
     <ProjectReference Include="..\DataBlocks\DataBlocks.fsproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Json.fs" />
+    <Compile Include="Model.fs" />
+    <Compile Include="JsonDecoder.fs" />
+    <Compile Include="JsonEncoder.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />
