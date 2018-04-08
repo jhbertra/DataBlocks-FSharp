@@ -42,6 +42,12 @@ module JsonEncoderTests =
         
 
     [<Fact>]
+    let ``nullable should encode Some`` () =
+        runEncoder (Encoder.nullable Encoder.string) (Some "Foo") |> should equal (JsString "Foo")
+        
+        
+
+    [<Fact>]
     let ``array should encode an array`` () =
         runEncoder (Encoder.array Encoder.int) [0; 1; 2] 
         |> should equal (JsArray [JsInteger 0; JsInteger 1; JsInteger 2])

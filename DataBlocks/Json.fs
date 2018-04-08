@@ -174,6 +174,17 @@ module Json =
         let optional fieldName = nullable >> property (konst (Ok None)) fieldName
 
 
+        let map f da = 
+            create
+                da.id
+                    (fun json id ->
+                        monad {
+                            let! a = da.decode json id
+                            return f a 
+                        }
+                    )
+
+
         let apply dfa da = 
             create
                 dfa.id
@@ -306,22 +317,23 @@ module Json =
     let bool = create Decoder.bool Encoder.bool
 
 
-    let nullable json = create (Decoder.nullable json.decoder) (Encoder.nullable json.encoder)
+    let nullable (Fixed jsonBlock) = create (Decoder.nullable jsonBlock.decoder) (Encoder.nullable jsonBlock.encoder)
 
 
-    let array json = create (Decoder.array json.decoder) (Encoder.array json.encoder)
+    let array (Fixed jsonBlock) = create (Decoder.array jsonBlock.decoder) (Encoder.array jsonBlock.encoder)
 
 
-    let switch<'a> : JsonBlock<'a, 'a> = { decoder = Decoder.fail "No choices in switch"; encoder = Encoder.switch }
+    let switch<'a> : JsonBlock<'a> = Fixed { decoder = Decoder.fail "No choices in switch"; encoder = Encoder.switch }
 
 
-    let choice getter jsonBlock (Fixed chainBlock) =
-        { decoder = Decoder.alternate jsonBlock.decoder chainBlock.decoder
+    let choice getter wrapper (Fixed jsonBlock) (Fixed chainBlock) =
+        { decoder = Decoder.alternate (Decoder.map wrapper jsonBlock.decoder) chainBlock.decoder
           encoder = Encoder.choice getter jsonBlock.encoder chainBlock.encoder
         } |> Fixed
 
 
-    let object f = { decoder = Decoder.succeed f; encoder = Encoder.object }
+    let objectStart f = { decoder = Decoder.succeed f; encoder = Encoder.object }
+    let ``{`` = objectStart
 
     
     let required fieldName (getter : 'c -> 'a) (Fixed json) (chainJson : JsonBlock<('a -> 'b), 'c>) : JsonBlock<'b, 'c> =
@@ -336,13 +348,26 @@ module Json =
         }
 
 
-    let endObject = Fixed
+    let objectEnd = Fixed
+    let ``}`` = objectEnd
 
 
     let invmap f g (Fixed json) = Fixed {
-        decoder = Decoder.bind (f >> Decoder.succeed) json.decoder
+        decoder = Decoder.map f json.decoder
         encoder = Encoder.contramap g json.encoder
-    } 
+    }
+
+
+    let invbind f g (Fixed json) = Fixed {
+        decoder = Decoder.bind (f >> Decoder.fromResult) json.decoder
+        encoder = Encoder.contramap g json.encoder
+    }
+
+
+    let modify jsonBlock f = decode jsonBlock >> map (f >> encode jsonBlock)
+
+
+    let operate jsonBlock f = decode jsonBlock >=> f >=> (encode jsonBlock >> Ok)
 
 
 type JsonDecoder<'a> with
