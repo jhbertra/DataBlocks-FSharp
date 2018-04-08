@@ -76,11 +76,9 @@ module JsonEncoderTests =
 
 
     let childFieldTypeEncoder =
-        JsonEncoder
-            (function
-            | Choice1 x -> JsInteger x
-            | Choice2 x -> JsString x
-            )
+        switch
+        |> choice (function Choice1 x -> Some x | _ -> None) int
+        |> choice (function Choice2 x -> Some x | _ -> None) string
 
 
     let superAdvancedOptionsEncoder =

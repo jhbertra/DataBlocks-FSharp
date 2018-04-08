@@ -15,14 +15,14 @@ type Json =
 type SingleError = SingleError of id : string * error : string
 
 
-type JsonError = 
+type DecodeError = 
     | Single of SingleError
     | Multiple of SingleError list
 
 
 type JsonDecoder<'a> = {
         id : string
-        decode : (Json -> string -> Result<'a, JsonError>)
+        decode : (Json -> string -> Result<'a, DecodeError>)
         }
 
 
@@ -35,7 +35,7 @@ type Json<'a> = {
     }
 
 
-type JsonError with
+type DecodeError with
     static member (+) ( e1 , e2 ) =
         match ( e1 , e2 ) with
         | ( Single e1 , Single e2) -> Multiple [e1; e2]
@@ -208,6 +208,15 @@ module Json =
               )
 
 
+        let choose splitA (JsonEncoder encoderB) (JsonEncoder encoderC) =
+            JsonEncoder
+                (fun a ->
+                    match splitA a with
+                    | Choice1Of2 b -> encoderB b
+                    | Choice2Of2 c -> encoderC c
+                )          
+
+
         let object<'a> : JsonEncoder<'a> = JsonEncoder (konst (JsObject Map.empty))
 
 
@@ -215,7 +224,17 @@ module Json =
             divide
                 (fun a -> ( a , getter a ))
                 chainEncoder
-                (JsonEncoder (encoder >> (flip (Map.add fieldName)) Map.empty >> JsObject))
+                (JsonEncoder (encoder >> (flip (Map.add fieldName)) Map.empty >> JsObject))            
+
+
+        let switch<'a> : JsonEncoder<'a> = JsonEncoder (konst (JsObject Map.empty))
+
+
+        let choice getter encoder chainEncoder =
+            choose
+                (fun a ->  getter a |> Option.map Choice2Of2 |> Option.defaultValue (Choice1Of2 a))
+                chainEncoder
+                encoder
 
 
 
