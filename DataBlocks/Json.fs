@@ -10,32 +10,45 @@ type Json =
     | JsBoolean of bool
     | JsString of string
     | JsNull
+    | JsVoid // though not part of the grammar, this is needed to act as a value which is discarded
+
+
+type SingleError = SingleError of id : string * error : string
+
+
+type JsonError = 
+    | Single of SingleError
+    | Multiple of SingleError list
+
+
+type JsonDecoder<'a> = {
+        id : string
+        decode : (Json -> string -> Result<'a, JsonError>)
+        }
+
+
+type JsonEncoder<'a> = JsonEncoder of ('a -> Json)
+
+
+type Json<'a> = {
+    decoder : JsonDecoder<'a>
+    encoder : JsonEncoder<'a>
+    }
+
+
+type JsonError with
+    static member (+) ( e1 , e2 ) =
+        match ( e1 , e2 ) with
+        | ( Single e1 , Single e2) -> Multiple [e1; e2]
+        | ( Single e , Multiple es ) -> Multiple (e :: es)
+        | ( Multiple es , Single e ) -> Multiple (es @ [e])
+        | ( Multiple es1 , Multiple es2 ) -> Multiple (es1 @ es2)
+    static member get_Zero() = Multiple []
 
 
 module Json =
 
     let private spreadApply2 fab a b arg1 arg2 = fab (a arg1 arg2) (b arg1 arg2)
-
-
-    type SingleError = SingleError of id : string * error : string
-
-
-    type DecodeError = 
-        | Single of SingleError
-        | Multiple of SingleError list with
-            static member (+) ( e1 , e2 ) =
-                match ( e1 , e2 ) with
-                | ( Single e1 , Single e2) -> Multiple [e1; e2]
-                | ( Single e , Multiple es ) -> Multiple (e :: es)
-                | ( Multiple es , Single e ) -> Multiple (es @ [e])
-                | ( Multiple es1 , Multiple es2 ) -> Multiple (es1 @ es2)
-            static member get_Zero() = Multiple []            
-
-
-    type Decoder<'a> = private {
-        id : string
-        decode : (Json -> string -> Result<'a, DecodeError>)
-        }
 
 
     let decode decoder json = decoder.decode json decoder.id
@@ -148,41 +161,102 @@ module Json =
 
         
         let optional fieldName = nullable >> property (konst (Ok None)) fieldName
-            
-    type Decoder<'a> with
-
-        static member Return (x : 'a) = Decoder.create "" (fun _ _ -> Ok x)
-
-        static member (<*>) ( dfa , da ) : Decoder<'b> =
-            Decoder.create
-                dfa.id
-                (fun json id ->
-                    let result1 = dfa.decode json id
-                    let result2 = da.decode json id
-                    match ( result1 , result2 ) with
-                    | ( Error e1 , Error e2 ) -> Error (e1 ++ e2)
-                    | ( _ , Error e2 ) -> Error e2
-                    | ( Error e1 , _ ) -> Error e1
-                    | ( Ok fa, Ok a ) -> Ok (fa a)
-                )
-
-        static member (>>=) ( d : Decoder<'a> , f : 'a -> Decoder<'b> ) : Decoder<'b> =
-            Decoder.create
-                d.id
-                (fun json id ->
-                    monad {
-                        let! a = d.decode json id
-                        let next = f a
-                        return! next.decode json id
-                    }
-                )
 
 
-        static member (<|>) ( d1 , d2 ) =
-            Decoder.create
-                d1.id
-                (fun json id ->
-                    match d1.decode json id with
-                    | Error _ -> d2.decode json id
-                    | x -> x
-                )
+    module Encoder =
+
+        let string = JsonEncoder JsString
+
+
+        let int = JsonEncoder JsInteger
+
+
+        let float = JsonEncoder JsFloat
+
+
+        let bool = JsonEncoder JsBoolean
+
+
+        let nullable (JsonEncoder encoder) = 
+            JsonEncoder
+              ( function
+                | Some x -> encoder x
+                | None -> JsNull
+              )
+
+
+        let array (JsonEncoder encoder) = 
+            JsonEncoder (fun x -> List.map encoder x |> JsArray)
+
+
+        let divide splitA (JsonEncoder encoderB) (JsonEncoder encoderC) =
+            JsonEncoder
+              (fun a ->
+                let ( b , c ) = splitA a
+                let result1 = encoderB b
+                let result2 = encoderC c
+                match ( result1 , result2 ) with
+                | ( JsObject map1, JsObject map2 ) ->
+                    Map.fold (fun acc key value -> Map.add key value acc) map1 map2
+                    |> JsObject
+                | ( JsObject map, json ) | ( json , JsObject map ) ->
+                    Map.add (sprintf "%d" (Map.count map)) json map |> JsObject
+                | ( json1, json2 ) ->
+                    JsObject (Map [("1", json1); ("2", json2)])
+              )
+
+
+        let object<'a> : JsonEncoder<'a> = JsonEncoder (konst JsVoid)
+
+
+        let property fieldName getter (JsonEncoder encoder) chainEncoder =
+            divide
+                (fun a -> ( a , getter a ))
+                chainEncoder
+                (JsonEncoder (encoder >> (flip (Map.add fieldName)) Map.empty >> JsObject))
+
+
+
+type JsonDecoder<'a> with
+
+    static member Return (x : 'a) = Json.Decoder.create "" (fun _ _ -> Ok x)
+
+    static member (<*>) ( dfa , da ) : JsonDecoder<'b> =
+        Json.Decoder.create
+            dfa.id
+            (fun json id ->
+                let result1 = dfa.decode json id
+                let result2 = da.decode json id
+                match ( result1 , result2 ) with
+                | ( Error e1 , Error e2 ) -> Error (e1 ++ e2)
+                | ( _ , Error e2 ) -> Error e2
+                | ( Error e1 , _ ) -> Error e1
+                | ( Ok fa, Ok a ) -> Ok (fa a)
+            )
+
+    static member (>>=) ( d : JsonDecoder<'a> , f : 'a -> JsonDecoder<'b> ) : JsonDecoder<'b> =
+        Json.Decoder.create
+            d.id
+            (fun json id ->
+                monad {
+                    let! a = d.decode json id
+                    let next = f a
+                    return! next.decode json id
+                }
+            )
+
+
+    static member (<|>) ( d1 , d2 ) =
+        Json.Decoder.create
+            d1.id
+            (fun json id ->
+                match d1.decode json id with
+                | Error _ -> d2.decode json id
+                | x -> x
+            )        
+
+
+type JsonEncoder<'a> with
+
+    static member Contramap (JsonEncoder f : JsonEncoder<'a>, fba : 'b -> 'a) : JsonEncoder<'b> =
+        contramap fba f |> JsonEncoder
