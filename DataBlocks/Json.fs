@@ -1,8 +1,6 @@
 namespace DataBlocks
 
 open FSharpPlus
-open FSharpPlus.Control
-open FSharpPlus
 
 type Json =
     | JsObject of Map<string, Json>

@@ -1,5 +1,6 @@
 source https://api.nuget.org/v3/index.json
 
+nuget Aether
 nuget FParsec
 nuget FSharp.Core
 nuget FSharpPlus 1.0.0-RC2

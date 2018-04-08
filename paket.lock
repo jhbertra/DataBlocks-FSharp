@@ -1,5 +1,8 @@
 NUGET
   remote: https://api.nuget.org/v3/index.json
+    Aether (8.2)
+      FSharp.Core (>= 4.1) - restriction: || (>= net45) (>= netstandard1.6)
+      NETStandard.Library (>= 1.6.1) - restriction: && (< net45) (>= netstandard1.6)
     FParsec (1.0.3)
       FSharp.Core (>= 4.0.0.1) - restriction: >= net40
       FSharp.Core (>= 4.2.3) - restriction: && (< net40) (>= netstandard1.6)
