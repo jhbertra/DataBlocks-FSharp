@@ -3,6 +3,18 @@ namespace DataBlocks
 open Aether
 open Aether.Operators
 open FSharpPlus
+open FSharpPlus.Operators
+
+// Prelude
+
+type Void = private | Void
+
+module Prelude =
+    
+    let absurd = function
+    | Void -> raise (System.InvalidOperationException("This function is logically impossible to call"))
+
+open Prelude
 
 // Types
 
@@ -68,15 +80,11 @@ module Core =
 
     let issue id message = { id = id; message = message }
 
-
     let error id message = Single (issue id message )
-
 
     let decoder id decode = { id = id; decode = decode }
 
-
     let encoder = Encoder
-
 
     let dataBlock id decode encode = Fixed { decoder = decoder id decode; encoder = encoder encode }
 
@@ -122,6 +130,14 @@ module Core =
 
     let blockEncode<'a, 'b> = blockUnfixed<'a, 'b> >-> unfixedBlockEncode
 
+    let runDecoder d = d.decode d.id
+
+    let runEncoder (Encoder e) = e
+
+    let decode (Fixed b) = runDecoder b.decoder
+
+    let encode (Fixed b) = runEncoder b.encoder
+
 
     module Decoder =
 
@@ -132,13 +148,13 @@ module Core =
         let succeed a = Ok a |> fromResult
 
 
-        let fail e = Error e |> fromResult
+        let fail message = Single { id = ""; message = message} |> Error |> fromResult
 
 
-        // Instance Functor where
+        // instance Functor where
         let map f d = decoder d.id (fun id -> d.decode id >=> (Ok << f))
 
-        // Instance Applicative where
+        // instance Applicative where
         let apply dfa da = 
             decoder
                 dfa.id
@@ -152,8 +168,7 @@ module Core =
                     | ( Ok fa, Ok a ) -> Ok (fa a)
                 )
 
-
-        // Instance Monad where
+        // instance Monad where
         let bind f d =
             decoder
                 d.id
@@ -164,8 +179,7 @@ module Core =
                     }
                 )
 
-
-        // Instance Alternative where
+        // instance Alternative where
         let alternate d1 d2 =
             decoder
                 d1.id
@@ -175,49 +189,107 @@ module Core =
                     | x -> x
                 )
 
-
-        // Instance Contravariant where
+        // instance Contravariant where
         let contramap f d = decoder d.id (fun id -> f >> d.decode id)
 
-
-        // Instance Profunctor where
+        // instance Profunctor where
         let dimap f g d = decoder d.id (fun id -> f >> d.decode id >=> (Ok << g))
 
-
-        // Instance Category where
+        // instance Category where
         let compose f g = decoder f.id (fun id -> f.decode id >=> g.decode id)
 
-
-        // Instance Arrow where
+        // instance Arrow where
         let fromFunction f = decoder "" (fun _ -> Ok << f)
-
 
         let first f = decoder f.id (fun id (a, c) -> f.decode id a |> (c |> flip tuple2 |> Result.map))
 
 
     module Encoder =
 
-        // Instance Functor where
+        // instance Functor where
         let map f (Encoder e) = Encoder (f << e)
 
-
-        // Instance Contravariant where
+        // instance Contravariant where
         let contramap f (Encoder e) = Encoder (e << f)
 
+        // instance Divisible where
+        let divide (combine : 'd -> 'd -> 'd) splitA (Encoder e1) (Encoder e2) =
+            Encoder (splitA >> ( e1 *** e2 ) >> (fun (d, d') -> combine d d'))
 
-        // Instance Profunctor where
+        let divided combine = divide combine id
+            
+        let conquer zero = Encoder <| konst zero
+
+        // instance Decidable where
+        let lose f = Encoder (absurd << f)
+
+        let lost () = lose id
+
+        let choose splitA (Encoder e1) (Encoder e2) =
+            Encoder (splitA >> fanin e2 e1)
+
+        let chosen () = choose id        
+
+        // instance Profunctor where
         let dimap f g (Encoder e) = Encoder (g << e << f)
 
-
-        // Instance Category where
+        // instance Category where
         let idEncoder = Encoder id
-
 
         let compose (Encoder f) (Encoder g) = Encoder (f >> g)
 
-
-        // Instance Arrow where
+        // instance Arrow where
         let first (Encoder e) = Encoder (fun (a, c) -> e a |> (flip tuple2) c)
+
+
+    // Applicative + Divisible = ...Clutch?
+    let disengage zero f = { decoder = Decoder.succeed f; encoder = Encoder.conquer zero }
+
+    let part combine getter (Fixed partBlock) remainderBlock =
+        { decoder = Decoder.apply remainderBlock.decoder partBlock.decoder
+          encoder = Encoder.divide combine (fanout getter id) partBlock.encoder remainderBlock.encoder
+        }
+
+    let engage = Fixed
+
+    // Alternative + Decidable = Tracable? :/
+    let path getter wrapper (Fixed pathBlock) (Fixed remainderBlock) =
+        Fixed
+            { decoder = Decoder.alternate (Decoder.map wrapper pathBlock.decoder) remainderBlock.decoder
+              encoder =
+                Encoder.choose
+                    (fun a ->  getter a |> Option.map Choice2Of2 |> Option.defaultValue (Choice1Of2 a))
+                    remainderBlock.encoder
+                    pathBlock.encoder
+            }
+
+    let exhausted zero = Fixed { decoder = Decoder.fail "Alternative set void"; encoder = Encoder (konst zero) }
+
+    let invmap2 f g h i (Fixed b) =
+        Fixed
+            { decoder = Decoder.dimap g h b.decoder
+              encoder = Encoder.dimap i f b.encoder
+            }
+
+    let invmapRaw f g = invmap2 f g id id
+
+    let invmapDecoded f g = invmap2 id id f g
+
+    let epimap2 f g h i (Fixed b) =
+        Fixed
+            { decoder = decoder b.decoder.id (fun id -> g >=> b.decoder.decode id >=> h)
+              encoder = Encoder.dimap i f b.encoder
+            }
+
+    let epimapRaw f g = epimap2 f g (Ok << id) id
+
+    let epimapDecoded f g = epimap2 id (Ok << id) f g
+
+
+    let modify block f = decode block >> map (f >> encode block)
+
+
+    let operate block f = decode block >=> f >=> (encode block >> Ok)
 
 
 open Core
@@ -278,3 +350,39 @@ type Encoder<'a, 'b> with
 
     static member First(f : Encoder<'a, 'b>) : Encoder<'a * 'c, 'b * 'c> =
         Encoder.first f
+
+
+type DataBlock<'a, 'b> with
+
+    static member RightInvmap(f : 'b -> 'c, g : 'c -> 'b, (Fixed b) : DataBlock<'a, 'b>) : DataBlock<'a, 'c> =
+        Fixed
+            { decoder = map f b.decoder
+              encoder = contramap g b.encoder
+            }
+
+    static member LeftInvmap(f : 'c -> 'a, g : 'a -> 'c, (Fixed b) : DataBlock<'a, 'b>) : DataBlock<'c, 'b> =
+        Fixed
+            { decoder = contramap f b.decoder
+              encoder = map g b.encoder
+            }
+
+    static member Invmap2(f : 'a -> 'c, g : 'c -> 'a, h : 'b -> 'd, i : 'd -> 'b, b : DataBlock<'a, 'b>) : DataBlock<'c, 'd> =
+        invmap2 f g h i b
+    
+    static member get_Id() : DataBlock<'a, 'a> =
+        Fixed
+            { decoder = catId
+              encoder = catId
+            }
+
+    static member (<<<) ((Fixed f) : DataBlock<'b, 'c>, (Fixed g) : DataBlock<'a, 'b>) : DataBlock<'a, 'c> =
+        Fixed
+            { decoder = Decoder.compose g.decoder f.decoder
+              encoder = Encoder.compose f.encoder g.encoder
+            }
+
+    static member (<->) (f : 'a -> 'b, g : 'b -> 'a) : DataBlock<'a, 'b> =
+        Fixed
+            { decoder = Decoder.fromFunction f
+              encoder = Encoder g
+            }
