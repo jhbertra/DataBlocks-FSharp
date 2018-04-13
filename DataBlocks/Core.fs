@@ -3,7 +3,6 @@ namespace DataBlocks
 open Aether
 open Aether.Operators
 open FSharpPlus
-open FSharpPlus.Operators
 
 // Prelude
 
@@ -92,24 +91,24 @@ module Core =
 
     // Optics
 
-    let issueId = Lens Issue.Id
+    let issueId : Lens<Issue, string> = Issue.Id
 
-    let issueMessage = Lens Issue.Message
+    let issueMessage : Lens<Issue, string> = Issue.Message
 
     let decoderId<'a, 'b> : Lens<Decoder<'a, 'b>, string> =
-        Lens (Decoder<'a, 'b>.Id ())
+        Decoder<'a, 'b>.Id ()
 
     let decoderDecode<'a, 'b> : Lens<Decoder<'a, 'b>, (string -> 'a -> Result<'b, DecodeError>)> =
-        Lens (Decoder<'a, 'b>.Decode ())
+        Decoder<'a, 'b>.Decode ()
 
     let encoderEncode<'a, 'b> : Lens<Encoder<'a, 'b>, ('a -> 'b)> =
-        Lens ( (fun (Encoder e) -> e) , (fun e _ -> Encoder e) )
+         (fun (Encoder e) -> e) , (fun e _ -> Encoder e) 
 
     let unfixedBlockDecoder<'a, 'b, 'c> : Lens<DataBlock<'a, 'b, 'c>, Decoder<'a, 'b>> =
-        Lens (DataBlock<'a, 'b, 'c>.Decoder())
+        DataBlock<'a, 'b, 'c>.Decoder()
 
     let unfixedBlockEncoder<'a, 'b, 'c> : Lens<DataBlock<'a, 'b, 'c>, Encoder<'c, 'a>> =
-        Lens (DataBlock<'a, 'b, 'c>.Encoder())
+        DataBlock<'a, 'b, 'c>.Encoder()
 
     let unfixedBlockId<'a, 'b, 'c> = unfixedBlockDecoder<'a, 'b, 'c> >-> decoderId
 
@@ -118,7 +117,7 @@ module Core =
     let unfixedBlockEncode<'a, 'b, 'c> = unfixedBlockEncoder<'a, 'b, 'c> >-> encoderEncode
 
     let blockUnfixed<'a, 'b> : Lens<DataBlock<'a, 'b>, DataBlock<'a, 'b, 'b>> =
-        Lens (DataBlock<'a, 'b>.Unfixed())
+        DataBlock<'a, 'b>.Unfixed()
 
     let blockDecoder<'a, 'b> = blockUnfixed<'a, 'b> >-> unfixedBlockDecoder
 
@@ -142,13 +141,13 @@ module Core =
     module Decoder =
 
 
-        let fromResult r = decoder "" (fun _ _ -> r)
+        let fromResult r = decoder "" (fun id _ -> Result.mapError (fun msg -> { id = id; message = msg } |> Single) r)
 
 
         let succeed a = Ok a |> fromResult
 
 
-        let fail message = Single { id = ""; message = message} |> Error |> fromResult
+        let fail message = Error message |> fromResult
 
 
         // instance Functor where
@@ -276,8 +275,9 @@ module Core =
     let invmapDecoded f g = invmap2 id id f g
 
     let epimap2 f g h i (Fixed b) =
+        let wrapError id = Result.mapError (fun msg -> { id = id; message = msg } |> Single)
         Fixed
-            { decoder = decoder b.decoder.id (fun id -> g >=> b.decoder.decode id >=> h)
+            { decoder = decoder b.decoder.id (fun id -> ((g >> wrapError id) >=> b.decoder.decode id >=> (h >> wrapError id)))
               encoder = Encoder.dimap i f b.encoder
             }
 

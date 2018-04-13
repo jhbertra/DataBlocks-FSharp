@@ -7,6 +7,7 @@ open FsUnit.Xunit
 open FSharpPlus.Operators
 
 open DataBlocks
+open DataBlocks.Core
 open DataBlocks.Json
 
 module JsonBlockTests =
@@ -213,7 +214,7 @@ module JsonBlockTests =
         imaginationConfig
         |> ``{``
         |> required "url" url string
-        |> required "connectionLimit" connectionLimit (invbind PositiveInteger.Create PositiveInteger.Unpack int)
+        |> required "connectionLimit" connectionLimit (epimapDecoded PositiveInteger.Create PositiveInteger.Unpack int)
         |> required "trustedUrls" trustedUrls (array string)
         |> optional "email" email string
         |> required "advanced" advanced advancedOptionsBlock

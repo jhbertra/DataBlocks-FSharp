@@ -7,6 +7,7 @@ open FsUnit.Xunit
 open FSharpPlus.Operators
 
 open DataBlocks
+open DataBlocks.Core
 open DataBlocks.Json
 
 module JsonEncoderTests =
